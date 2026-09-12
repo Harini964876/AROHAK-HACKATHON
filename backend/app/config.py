@@ -1,5 +1,5 @@
 import os
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     
     # Cancellation Policy
     FREE_CANCELLATION_HOURS: int = 24
+
+    # AI Chatbot Configuration
+    AI_PROVIDER: str = "fallback"  # 'fallback', 'gemini', 'openai', 'ollama'
+    AI_API_KEY: Optional[str] = None
+    AI_MODEL: str = "gemini-1.5-flash"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

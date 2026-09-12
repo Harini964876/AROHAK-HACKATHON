@@ -9,7 +9,8 @@ from app.routers import (
     hotels_router,
     rooms_router,
     bookings_router,
-    organizations_router
+    organizations_router,
+    chatbot_router
 )
 from app.seed import init_db
 
@@ -63,6 +64,7 @@ app.include_router(organizations_router, prefix=settings.API_V1_STR)
 app.include_router(hotels_router, prefix=settings.API_V1_STR)
 app.include_router(rooms_router, prefix=settings.API_V1_STR)
 app.include_router(bookings_router, prefix=settings.API_V1_STR)
+app.include_router(chatbot_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

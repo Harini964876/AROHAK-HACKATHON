@@ -2,11 +2,39 @@
 
 A full-featured, production-grade Hotel Booking Management System built with **FastAPI**, **SQLAlchemy**, **SQLite (WAL + Immediate Locking)**, and **React + Tailwind CSS**.
 
-This system implements **Phase 1 (Mandatory MVP - 50 marks)** and **Phase 2 (Core Extensions - 13 marks)**:
-- Full Multi-Organization Tenant Isolation (`Platform -> Organization -> Hotel -> Room -> Booking`).
-- Advanced Booking Dashboards for Customer (Categorized Upcoming / Completed / Cancelled with details modal) and Staff (Multi-hotel selector, search by customer, date ranges, and completion actions).
-- Concurrency-safe atomic booking engine.
-- 24-Hour cancellation policy workflow.
+This system implements:
+- **Phase 1 (Mandatory MVP - 50 marks)**: Authentication & RBAC, Room Management & Search, Booking Engine with Concurrency Safety, 24h Cancellation Policy.
+- **Phase 2 (Core Extensions - 13 marks)**: Multi-Organization Tenant Isolation (`Platform -> Organization -> Hotel -> Room -> Booking`), Advanced Categorized Customer & Staff Dashboards.
+- **High-Value AI Extension 6 (AI Chatbot - 20 marks)**: AI-Powered Booking Concierge connected directly to live SQLite database with Zero Hallucination guarantee, multi-turn booking confirmation, and 24h cancellation workflows.
+
+---
+
+## 🤖 High-Value AI Extension 6: AI Chatbot – Booking Management (20 marks)
+
+An intelligent, multi-turn AI Booking Concierge available directly in the web app and accessible via `POST /api/chatbot/message`.
+
+### Core Capabilities:
+1. **Natural Language Understanding & Entity Extraction**:
+   - Location (e.g., "Mumbai", "Goa", "Delhi")
+   - Date extraction supporting both ISO (`2026-10-15`) and natural language months (`October 15 to 18`, `Sept 20 to 23`)
+   - Guest count extraction (`2 guests`, `for 3 people`, `solo traveler`)
+   - Room number extraction (`Room 101`, `T102`) and Booking ID extraction (`#1`, `booking 42`)
+2. **Zero-Hallucination Live Database Integration**:
+   - The chatbot never fabricates room availability, prices, or booking IDs.
+   - All room searches execute the production `search_available_rooms` function with date overlap exclusion.
+   - All bookings execute `create_booking_concurrency_safe` with `BEGIN IMMEDIATE` transaction locking.
+3. **Multi-Turn Conversational Booking with Explicit Confirmation**:
+   - Ambiguous queries prompt friendly clarification.
+   - Initial booking requests present a **Pending Proposal** with exact room, dates, nights, and total cost.
+   - The database is **never** touched until the customer explicitly replies with confirmation ("Yes, confirm", "Proceed", "Confirm booking").
+4. **Policy Enforcement & Customer Isolation**:
+   - Chatbot requests require a valid JWT bearer token.
+   - Customer identity is extracted directly from the session; arbitrary `customer_id` injection is rejected.
+   - Customers can only query, view, or cancel their own bookings.
+   - Cancellations made $>24$ hours prior to check-in are directly cancelled; cancellations within $\le24$ hours trigger the `PENDING_CANCELLATION` staff-review workflow.
+5. **Pluggable AI Provider Architecture**:
+   - Abstract provider interface supporting Gemini, OpenAI, Ollama, and an offline **Deterministic Rule Provider** that runs with 0 external API dependencies and passes all unit tests offline.
+   - Configurable via `.env`: `AI_PROVIDER=deterministic` (default), `gemini`, `openai`, or `ollama`.
 
 ---
 
@@ -82,12 +110,15 @@ cd booking-system/backend
 .\venv\Scripts\pytest.exe -v
 ```
 
-**Test Coverage Summary (22/22 Passing):**
-- `test_auth_roles.py`: 8 tests verifying role boundary enforcement and 403 Forbidden checks.
-- `test_concurrency.py`: Verifies concurrent booking requests for the exact same room and dates, asserting exactly one 201 Created and one 409 Conflict.
-- `test_cancellations.py`: Tests direct cancellation (>24h), pending approval ($\le$24h), staff approval/rejection, and double cancellation prevention.
-- `test_multi_org.py`: 8 tests verifying strict tenant data isolation, cross-org 403 prevention, hotel addition, and receptionist assignment.
-- `test_dashboards.py`: Tests categorized customer dashboard filtering (Upcoming, Completed, Cancelled) and staff multi-criteria search.
+**Test Coverage Summary (49/49 Passing):**
+- `test_chatbot.py` (16 tests): Tests natural language intent extraction, room search with real DB records, zero hallucination checks, explicit confirmation requirement, concurrency-safe booking, 24h cancellation enforcement, parameter extraction, and security/sanitization.
+- `test_auth_roles.py` (8 tests): Verifies role boundary enforcement and 403 Forbidden checks.
+- `test_multi_org.py` (8 tests): Verifies strict tenant data isolation, cross-org 403 prevention, hotel addition, and receptionist assignment.
+- `test_mvp_audit.py` (6 tests): Tests customer registration, login, inactive room booking prevention, date overlap rejection, and customer isolation.
+- `test_security_hardening.py` (5 tests): Tests privilege escalation prevention on register, password complexity, OWASP security headers, token revocation on logout, and auth rate limiting.
+- `test_cancellations.py` (3 tests): Tests direct cancellation (>24h), pending approval ($\le$24h), staff approval/rejection, and double cancellation prevention.
+- `test_dashboards.py` (2 tests): Tests categorized customer dashboard filtering (Upcoming, Completed, Cancelled) and staff multi-criteria search.
+- `test_concurrency.py` (1 test): Verifies concurrent booking requests for the exact same room and dates, asserting exactly one 201 Created and one 409 Conflict.
 
 ---
 

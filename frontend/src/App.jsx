@@ -10,6 +10,7 @@ import AdminRooms from './pages/AdminRooms';
 import OrgAdminPanel from './pages/OrgAdminPanel';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ChatbotWidget from './components/ChatbotWidget';
 
 function MainApp() {
   const { user, loading } = useAuth();
@@ -121,6 +122,9 @@ function MainApp() {
         isOpen={isPolicyOpen}
         onClose={() => setIsPolicyOpen(false)}
       />
+
+      {/* Floating AI Booking Concierge Widget */}
+      <ChatbotWidget onNavigateToTab={setActiveTab} />
     </div>
   );
 }
