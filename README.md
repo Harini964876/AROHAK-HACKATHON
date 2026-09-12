@@ -9,7 +9,7 @@ This system implements:
 
 ---
 
-## 🤖 High-Value AI Extension 6: AI Chatbot – Booking Management (20 marks)
+## 🤖 High-Value AI Extension : AI Chatbot – Booking Management 
 
 An intelligent, multi-turn AI Booking Concierge available directly in the web app and accessible via `POST /api/chatbot/message`.
 
