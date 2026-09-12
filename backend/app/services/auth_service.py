@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, List, Callable
 from jose import JWTError, jwt
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.models.revoked_token import RevokedToken
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -21,6 +23,8 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
+    if "jti" not in to_encode:
+        to_encode["jti"] = str(uuid.uuid4())
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -28,6 +32,27 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+def revoke_token(db: Session, token: str) -> bool:
+    """
+    Revokes a JWT token by storing its unique jti in the RevokedToken denylist.
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        jti = payload.get("jti")
+        exp_ts = payload.get("exp")
+        if not jti or not exp_ts:
+            return False
+
+        expires_at = datetime.utcfromtimestamp(exp_ts)
+        existing = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+        if not existing:
+            revocation = RevokedToken(jti=jti, expires_at=expires_at)
+            db.add(revocation)
+            db.commit()
+        return True
+    except JWTError:
+        return False
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -41,11 +66,22 @@ def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id_str = payload.get("sub")
+        jti = payload.get("jti")
         if user_id_str is None:
             raise credentials_exception
         user_id = int(user_id_str)
     except (JWTError, ValueError):
         raise credentials_exception
+
+    # Check if token has been revoked
+    if jti:
+        is_revoked = db.query(RevokedToken).filter(RevokedToken.jti == jti).first()
+        if is_revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:

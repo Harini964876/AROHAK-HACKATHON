@@ -42,11 +42,19 @@ export const AuthProvider = ({ children }) => {
     return await login(userData.email, userData.password);
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      if (token) {
+        await api.post('/auth/logout');
+      }
+    } catch (err) {
+      // Ignore errors on logout
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    }
   };
 
   return (

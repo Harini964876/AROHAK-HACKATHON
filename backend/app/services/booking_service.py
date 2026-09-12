@@ -1,8 +1,11 @@
+import logging
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import text, and_, or_, select
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+
+logger = logging.getLogger(__name__)
 
 from app.models.booking import Booking
 from app.models.room import Room
@@ -99,9 +102,23 @@ def create_booking_concurrency_safe(
     connection = db.connection()
     try:
         connection.execute(text("BEGIN IMMEDIATE"))
-    except Exception:
-        # Already inside a transaction or dialect differences
-        pass
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        # Benign/expected scenario: transaction is already active or in immediate mode
+        if "cannot start a transaction within a transaction" in err_msg or "transaction is active" in err_msg:
+            logger.debug("Transaction already active; proceeding within write lock context.")
+        elif "locked" in err_msg or "busy" in err_msg:
+            logger.warning(f"Database contention during BEGIN IMMEDIATE: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Booking conflict: Database busy under concurrent booking attempt. Please retry."
+            )
+        else:
+            logger.error(f"Unexpected error acquiring transaction write lock: {exc}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to acquire secure booking transaction lock."
+            )
 
     try:
         # 1. Fetch room details
